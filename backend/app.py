@@ -9,7 +9,9 @@ import numpy as np
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
+
+from groq import Groq
 
 # --- load .env ---
 load_dotenv()
@@ -28,7 +30,7 @@ app.add_middleware(
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 COLL = os.getenv("QDRANT_COLLECTION", "docs")
-EMBED_MODEL = os.getenv("EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+EMBED_MODEL = os.getenv("EMBED_MODEL", "BAAI/bge-small-en-v1.5")
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")
 LLM_MODEL = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
@@ -36,10 +38,9 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # Vector DB + embedder
 client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-embedder = SentenceTransformer(EMBED_MODEL)
+embedder = TextEmbedding(model_name=EMBED_MODEL)
 
 # LLM: Groq (free)
-from groq import Groq
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 # --- health ---
@@ -94,7 +95,8 @@ def query(q: QueryIn):
     t0 = time.time()
 
     # 1) embed query
-    qvec = embedder.encode(q.q, normalize_embeddings=True)
+    qvec = np.array(list(embedder.embed([q.q]))[0])
+    qvec = qvec / (np.linalg.norm(qvec) + 1e-9)
 
     # 2) vector search (top-k)
     results = client.search(
