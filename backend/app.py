@@ -76,22 +76,55 @@ def mmr(query_vec: np.ndarray, cand_vecs: np.ndarray, k=5, lambda_=0.7) -> List[
     return selected
 
 def call_groq(prompt: str) -> str:
-    """Groq chat completion with instruction to ALWAYS cite inline as [1],[2],..."""
+    """
+    Strong extractive, grounded behavior with two generic few-shot examples.
+    """
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are an EXTRACTIVE, GROUNDED QA assistant.\n"
+                "RULES:\n"
+                "• Use ONLY the provided snippets as authoritative ground truth, overriding any prior knowledge.\n"
+                "• If ANY snippet literally contains the answer, RETURN THAT SPAN (or a near-verbatim short phrase) "
+                "and cite inline like [1], [2].\n"
+                "• Only output \"I don't know\" if NO snippet contains a plausible answer.\n"
+                "• Do not hedge when a snippet states the answer. Keep answers short."
+            ),
+        },
+
+        # --- Few-shot 1: explicit answer present -> extract + cite
+        {
+            "role": "user",
+            "content": (
+                "Question: Where does Alice work?\n\n"
+                "Sources:\n"
+                "[1] Alice works at Acme Corporation in Berlin.\n"
+                "[2] Acme Corporation manufactures widgets.\n"
+            ),
+        },
+        {"role": "assistant", "content": "Acme Corporation. [1]"},
+
+        # --- Few-shot 2: no answer present -> say 'I don't know'
+        {
+            "role": "user",
+            "content": (
+                "Question: What is Bob's phone number?\n\n"
+                "Sources:\n"
+                "[1] Bob enjoys hiking and photography.\n"
+                "[2] Bob's favorite color is green.\n"
+            ),
+        },
+        {"role": "assistant", "content": "I don't know."},
+
+        # --- Now the actual question + snippets
+        {"role": "user", "content": prompt},
+    ]
+
     r = groq_client.chat.completions.create(
         model=LLM_MODEL,
-        temperature=0.2,
-        messages=[
-            {   "role": "system", 
-                "content":(
-                    "You are an extractive QA assistant. "
-                    "Answer ONLY using the provided sources. "
-                    "If the answer appears explicitly in any snippet, extract it verbatim or near-verbatim, "
-                    "state it concisely, and include inline citations like [1], [2]. "
-                    "If the answer truly isn't present, say you don't know and list the closest snippets."
-                )
-            },
-            {"role": "user", "content": prompt},
-        ],
+        temperature=0.0,
+        messages=messages,
     )
     return r.choices[0].message.content
 
@@ -120,15 +153,23 @@ def query(q: QueryIn):
             "token_estimate": 0
         }
 
-    # top score heuristic for no-answer
-    top_score = results[0].score if hasattr(results[0], "score") else None
+    # --- sort by similarity first so the best chunk is never dropped ---
+    results_sorted = sorted(results, key=lambda p: getattr(p, "score", 0.0), reverse=True)
 
-    # 3) MMR rerank to pick diverse, relevant 5
-    cand_vecs = np.array([normalize(np.array(p.vector)) for p in results])
-    order = mmr(qvec, cand_vecs, k=5, lambda_=0.7)
-    picked = [results[i] for i in order]
+    # top score for no-answer guard (from sorted list)
+    top_score = getattr(results_sorted[0], "score", None)
 
-    # 4) Build prompt context + citation map
+    # --- pick context: skip MMR for tiny result sets; otherwise use relevance-heavy MMR ---
+    max_ctx = 5
+    if len(results_sorted) <= 8:
+        picked = results_sorted[:max_ctx]  # just take the top N by score
+    else:
+        cand_vecs = np.array([normalize(np.array(p.vector)) for p in results_sorted])
+        # λ=0.9 = strong relevance, slight diversity
+        order = mmr(qvec, cand_vecs, k=max_ctx, lambda_=0.9)
+        picked = [results_sorted[i] for i in order]
+
+        
     ctx_lines, cites = [], []
     for i, p in enumerate(picked, start=1):
         text = p.payload["text"]
@@ -145,7 +186,7 @@ def query(q: QueryIn):
     )
 
     # 5) No-answer branch (very low similarity)
-    if top_score is not None and top_score < 0.08:
+    if top_score is not None and top_score < 0.05:
         answer = (
             "I don't have enough information to answer confidently from the indexed documents. "
             "Here are the closest snippets: " +
