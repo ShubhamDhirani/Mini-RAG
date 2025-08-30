@@ -81,9 +81,15 @@ def call_groq(prompt: str) -> str:
         model=LLM_MODEL,
         temperature=0.2,
         messages=[
-            {"role": "system", "content":
-             "You are a grounded QA assistant. Use only the provided sources. "
-             "Cite with [1], [2], ... inline. If insufficient info, say you don't know and show the closest sources."},
+            {   "role": "system", 
+                "content":(
+                    "You are an extractive QA assistant. "
+                    "Answer ONLY using the provided sources. "
+                    "If the answer appears explicitly in any snippet, extract it verbatim or near-verbatim, "
+                    "state it concisely, and include inline citations like [1], [2]. "
+                    "If the answer truly isn't present, say you don't know and list the closest snippets."
+                )
+            },
             {"role": "user", "content": prompt},
         ],
     )
