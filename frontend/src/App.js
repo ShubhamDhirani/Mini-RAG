@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -8,11 +8,16 @@ console.log("Using Backend:",BACKEND);
 function App() {
   const [q, setQ] = useState("");
   const [answer, setAnswer] = useState("");
-  const [citations, setCitations] = useState([]);
-  const [meta, setMeta] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dark, setDark] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const chatEndRef = useRef(null);
+  
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behaviour: "smooth"});
+  }, [messages]);
+
 
   useEffect(() => {
     const root = document.documentElement;
@@ -28,24 +33,56 @@ function App() {
   }
 
   const ask = async () => {
-    if (!q.trim()) return;
+    const text = q.trim();
+    if (!text) return;
+
+    // 1) push user's message
+    const userMsg = { role: "user", content: text };
+    setMessages((m) => [...m, userMsg]);
+
+    // 2) show a temporary assistant "typing…" bubble
+    const tempAssistant = { role: "assistant", content: "Thinking…", loading: true };
+    setMessages((m) => [...m, tempAssistant]);
+
+    // reset input + old single-answer panel
+    setQ("");
+    setAnswer("");               // optional: you can keep for copy button if you want
     setLoading(true);
-    setAnswer("Thinking...");
-    setCitations([]);
-    setMeta("");
 
     try {
       const r = await fetch(`${BACKEND}/query`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ q })
+        body: JSON.stringify({ q: text })
       });
       const data = await r.json();
+
+      // 3) replace the temp assistant bubble with the real answer
+      const finalAssistant = {
+        role: "assistant",
+        content: data.answer || "",
+        citations: data.citations || [],
+        meta: { latency: data.latency_ms, tokens: data.token_estimate }
+      };
+
+      setMessages((m) => {
+        const copy = [...m];
+        copy[copy.length - 1] = finalAssistant; // replace last temp assistant
+        return copy;
+      });
+
+      // (keep legacy single-answer fields if you still show them elsewhere)
       setAnswer(data.answer || "");
-      setCitations(data.citations || []);
-      setMeta(`Latency: ${data.latency_ms} ms | Token est: ${data.token_estimate}`);
     } catch (err) {
-      setAnswer("Request failed. Check backend URL/CORS and server.");
+      // replace the temp assistant with an error bubble
+      setMessages((m) => {
+        const copy = [...m];
+        copy[copy.length - 1] = {
+          role: "assistant",
+          content: "Request failed. Check backend URL/CORS and server."
+        };
+        return copy;
+      });
     } finally {
       setLoading(false);
     }
@@ -70,6 +107,76 @@ function App() {
           {dark ? "☀️ Light" : "🌙 Dark"}
         </button>
       </div>
+    {/* Chat transcript */}
+    <div style={styles.chat}>
+      {messages.map((m, idx) => (
+        <div
+          key={idx}
+          style={m.role === "user" ? styles.userBubble : styles.assistantBubble}
+        >
+          {m.role === "assistant" ? (
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {m.content}
+            </ReactMarkdown>
+          ) : (
+            <div>{m.content}</div>
+          )}
+
+          {/* per-message meta (latency/tokens) */}
+          {m.role === "assistant" && m.meta && (
+            <div style={{ marginTop: 6, fontSize: 12, color: "#666" }}>
+              Latency: {m.meta.latency} ms
+              {m.meta.tokens != null ? ` | Tokens: ${m.meta.tokens}` : ""}
+            </div>
+          )}
+
+          {/* per-message collapsible citations */}
+          {m.role === "assistant" && m.citations && m.citations.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>Sources</div>
+              <ol style={{ paddingLeft: 18, margin: 0 }}>
+                {m.citations.map((c) => (
+                  <li key={c.i} style={{ marginBottom: 8 }}>
+                    <details>
+                      <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+                        [{c.i}] {c.title}{" "}
+                        <span style={{ color: "#666", fontWeight: 400 }}>
+                          — {c.source ? c.source.split("/").pop() : ""}
+                        </span>
+                      </summary>
+                      <p
+                        style={{
+                          marginTop: 8,
+                          color: "#555",
+                          background: "#f6f7f9",
+                          padding: "8px 10px",
+                          borderRadius: 8,
+                        }}
+                      >
+                        {c.snippet}
+                      </p>
+                    </details>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </div>
+      ))}
+      <div ref={chatEndRef} />
+    </div>
+
+    {/* Clear Button */}
+    <div style = {{marginTop: 8}}>
+      <button
+        onClick={() => setMessages([])}
+        style={{ ...styles.button, background: "var(--btn-secondary)" }}
+        disabled={messages.length === 0}
+      >
+        Clear
+      </button>  
+    </div>
+    
       <textarea
         style={styles.textarea}
         rows="5"
@@ -88,44 +195,6 @@ function App() {
         Copy answer
       </button>  
       {copied && <span style={{ marginLeft: 8, color: "#555"}}>Copied!</span>}
-      <div style={styles.meta}>{meta}</div>
-      {answer && (
-        <div style={styles.answer}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {answer}
-          </ReactMarkdown>
-        </div>
-      )}
-      {citations && citations.length > 0 && (
-  <>
-    <h3>Sources</h3>
-    <ol style={{ paddingLeft: 18 }}>
-      {citations.map((c) => (
-        <li key={c.i} style={{ marginBottom: 8 }}>
-          <details>
-            <summary style={{ cursor: "pointer", fontWeight: 600 }}>
-              [{c.i}] {c.title}{" "}
-              <span style={{ color: "#666", fontWeight: 400 }}>
-                — {c.source ? c.source.split("/").pop() : ""}
-              </span>
-            </summary>
-            <p
-              style={{
-                marginTop: 8,
-                color: "#555",
-                background: "#f6f7f9",
-                padding: "8px 10px",
-                borderRadius: 8
-              }}
-            >
-              {c.snippet}
-            </p>
-          </details>
-        </li>
-      ))}
-    </ol>
-  </>
-)}
     </div>
   );
 }
@@ -165,6 +234,34 @@ const styles = {
     padding: "12px",
     background: "var(--answer-bg)",
     borderRadius: "8px",
+  },
+    // Chat styles
+  chat: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+    marginTop: 12,
+    marginBottom: 8,
+    maxHeight: "60vh",
+    overflowY: "auto",
+    paddingRight: 4,
+  },
+  userBubble: {
+    alignSelf: "flex-end",
+    background: "#2b6cb0",
+    color: "white",
+    padding: "10px 12px",
+    borderRadius: "12px",
+    maxWidth: "80%",
+  },
+  assistantBubble: {
+    alignSelf: "flex-start",
+    background: "var(--answer-bg)",
+    color: "var(--fg)",
+    padding: "10px 12px",
+    borderRadius: "12px",
+    border: "1px solid var(--border)",
+    maxWidth: "80%",
   },
 };
 
