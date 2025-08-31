@@ -36,12 +36,19 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")
 LLM_MODEL = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Vector DB + embedder
-client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-embedder = TextEmbedding(model_name=EMBED_MODEL)
+from functools import lru_cache
 
-# LLM: Groq (free)
-groq_client = Groq(api_key=GROQ_API_KEY)
+@lru_cache(maxsize = 1)
+def get_qdrant():
+    return QdrantClient(url = QDRANT_URL, api_key = QDRANT_API_KEY)
+
+@lru_cache(maxsize = 1)
+def get_embedder():
+    return TextEmbedding(model_name=EMBED_MODEL)
+
+@lru_cache(maxsize=1)
+def get_groq():
+    return Groq(api_key=GROQ_API_KEY)
 
 # --- health ---
 @app.get("/health")
@@ -78,7 +85,10 @@ def mmr(query_vec: np.ndarray, cand_vecs: np.ndarray, k=5, lambda_=0.7) -> List[
 def call_groq(prompt: str) -> str:
     """
     Strong extractive, grounded behavior with two generic few-shot examples.
+    (Uses lazy-loaded Groq client to avoid cold-start stalls.)
     """
+    groq_client = get_groq()  # <-- lazy-load
+
     messages = [
         {
             "role": "system",
@@ -133,6 +143,10 @@ def call_groq(prompt: str) -> str:
 def query(q: QueryIn):
     t0 = time.time()
 
+    # lazy-load heavy deps so /health starts instantly and cold starts are tiny
+    embedder = get_embedder()
+    client = get_qdrant()
+
     # 1) embed query
     qvec = np.array(list(embedder.embed([q.q]))[0])
     qvec = qvec / (np.linalg.norm(qvec) + 1e-9)
@@ -169,7 +183,7 @@ def query(q: QueryIn):
         order = mmr(qvec, cand_vecs, k=max_ctx, lambda_=0.9)
         picked = [results_sorted[i] for i in order]
 
-        
+    # 4) Build prompt context + citation map
     ctx_lines, cites = [], []
     for i, p in enumerate(picked, start=1):
         text = p.payload["text"]
@@ -190,7 +204,7 @@ def query(q: QueryIn):
         answer = (
             "I don't have enough information to answer confidently from the indexed documents. "
             "Here are the closest snippets: " +
-            " ".join(f"[{c['i']}] {c['snippet']}" for c in cites[:2])
+            " ".join(f'[{c["i"]}] {c["snippet"]}' for c in cites[:2])
         )
     else:
         answer = call_groq(prompt)
