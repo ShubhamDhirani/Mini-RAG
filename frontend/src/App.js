@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 const BACKEND = process.env.REACT_APP_BACKEND || "http://127.0.0.1:8000";
 console.log("Using Backend:",BACKEND);
@@ -48,15 +50,43 @@ function App() {
         {loading ? "Loading..." : "Ask"}
       </button>
       <div style={styles.meta}>{meta}</div>
-      <div style={styles.answer}>{answer}</div>
-      <h3>Sources</h3>
-      <ol>
-        {citations.map((c) => (
-          <li key={c.i}>
-            <strong>[{c.i}] {c.title}</strong> — {c.snippet}
-          </li>
-        ))}
-      </ol>
+      {answer && (
+        <div style={styles.answer}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {answer}
+          </ReactMarkdown>
+        </div>
+      )}
+      {citations && citations.length > 0 && (
+  <>
+    <h3>Sources</h3>
+    <ol style={{ paddingLeft: 18 }}>
+      {citations.map((c) => (
+        <li key={c.i} style={{ marginBottom: 8 }}>
+          <details>
+            <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+              [{c.i}] {c.title}{" "}
+              <span style={{ color: "#666", fontWeight: 400 }}>
+                — {c.source ? c.source.split("/").pop() : ""}
+              </span>
+            </summary>
+            <p
+              style={{
+                marginTop: 8,
+                color: "#555",
+                background: "#f6f7f9",
+                padding: "8px 10px",
+                borderRadius: 8
+              }}
+            >
+              {c.snippet}
+            </p>
+          </details>
+        </li>
+      ))}
+    </ol>
+  </>
+)}
     </div>
   );
 }
