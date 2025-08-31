@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -12,6 +12,13 @@ function App() {
   const [meta, setMeta] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (dark) root.classList.add("dark");
+    else root.classList.remove("dark");
+  }, [dark]);
 
   function copyAnswer() {
     if (!answer) return;
@@ -46,7 +53,23 @@ function App() {
 
   return (
     <div style={styles.container}>
-      <h1>Mini RAG Playground</h1>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <h1 style={{ margin: 0 }}>Mini RAG Playground</h1>
+        <button
+          onClick={() => setDark((v) => !v)}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 8,
+            border: 0,
+            background: "var(--btn-secondary)",
+            color: "white",
+            cursor: "pointer"
+          }}
+          title={dark ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {dark ? "☀️ Light" : "🌙 Dark"}
+        </button>
+      </div>
       <textarea
         style={styles.textarea}
         rows="5"
@@ -111,30 +134,38 @@ const styles = {
   container: {
     maxWidth: "800px",
     margin: "40px auto",
-    background: "#fff",
+    background: "var(--card)",
     padding: "24px",
     borderRadius: "12px",
-    boxShadow: "0 6px 24px rgba(0,0,0,0.06)",
-    fontFamily: "system-ui, sans-serif"
+    boxShadow: "var(--shadow)",
+    fontFamily: "system-ui, sans-serif",
   },
   textarea: {
     width: "100%",
     padding: "12px",
-    border: "1px solid #ddd",
+    border: "1px solid var(--border)",
     borderRadius: "8px",
-    marginBottom: "12px"
+    marginBottom: "12px",
+    background: "var(--bg)",
+    color: "var(--fg)",
   },
   button: {
     padding: "10px 16px",
     border: 0,
     borderRadius: "8px",
-    background: "#2b6cb0",
+    background: "var(--btn)",
     color: "white",
     cursor: "pointer",
-    marginBottom: "16px"
+    marginRight: "8px",
+    marginBottom: "16px",
   },
-  meta: { marginBottom: "8px", fontSize: "14px", color: "#555" },
-  answer: { marginTop: "12px", padding: "12px", background: "#f0f7ff", borderRadius: "8px" }
+  meta: { marginBottom: "8px", fontSize: "14px", color: "var(--muted)" },
+  answer: {
+    marginTop: "12px",
+    padding: "12px",
+    background: "var(--answer-bg)",
+    borderRadius: "8px",
+  },
 };
 
 export default App;

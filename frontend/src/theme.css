@@ -1,0 +1,30 @@
+/* --- Light/Dark theme variables --- */
+:root {
+  --bg: #ffffff;
+  --fg: #111827;
+  --card: #ffffff;
+  --muted: #555;
+  --answer-bg: #f0f7ff;
+  --btn: #2b6cb0;
+  --btn-secondary: #6b7280;
+  --border: #ddd;
+  --shadow: 0 6px 24px rgba(0,0,0,0.06);
+}
+
+.dark {
+  --bg: #0b1220;
+  --fg: #e5e7eb;
+  --card: #0f172a;
+  --muted: #a1a1aa;
+  --answer-bg: #0b1628;
+  --btn: #3b82f6;
+  --btn-secondary: #52525b;
+  --border: #1f2937;
+  --shadow: 0 8px 28px rgba(0,0,0,0.35);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  transition: background 0.3s, color 0.3s;
+}
