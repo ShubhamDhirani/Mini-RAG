@@ -11,6 +11,14 @@ function App() {
   const [citations, setCitations] = useState([]);
   const [meta, setMeta] = useState("");
   const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  function copyAnswer() {
+    if (!answer) return;
+    navigator.clipboard.writeText(answer);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3200);
+  }
 
   const ask = async () => {
     if (!q.trim()) return;
@@ -49,6 +57,14 @@ function App() {
       <button style={styles.button} onClick={ask} disabled={loading}>
         {loading ? "Loading..." : "Ask"}
       </button>
+      <button
+        style={{ ...styles.button, background: "#6b7280"}}
+        onClick={copyAnswer}
+        disabled = {!answer || loading}
+      >
+        Copy answer
+      </button>  
+      {copied && <span style={{ marginLeft: 8, color: "#555"}}>Copied!</span>}
       <div style={styles.meta}>{meta}</div>
       {answer && (
         <div style={styles.answer}>
