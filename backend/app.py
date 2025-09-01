@@ -84,26 +84,23 @@ def mmr(query_vec: np.ndarray, cand_vecs: np.ndarray, k=5, lambda_=0.7) -> List[
 
 def call_groq(prompt: str) -> str:
     """
-    Strong extractive, grounded behavior with two generic few-shot examples.
-    (Uses lazy-loaded Groq client to avoid cold-start stalls.)
+    Grounded, extractive answering in ONE short, complete sentence with inline citations.
     """
-    groq_client = get_groq()  # <-- lazy-load
-
     messages = [
         {
             "role": "system",
             "content": (
                 "You are an EXTRACTIVE, GROUNDED QA assistant.\n"
                 "RULES:\n"
-                "• Use ONLY the provided snippets as authoritative ground truth, overriding any prior knowledge.\n"
-                "• If ANY snippet literally contains the answer, RETURN THAT SPAN (or a near-verbatim short phrase) "
-                "and cite inline like [1], [2].\n"
-                "• Only output \"I don't know\" if NO snippet contains a plausible answer.\n"
-                "• Do not hedge when a snippet states the answer. Keep answers short."
+                "• Use ONLY the provided snippets as authoritative ground truth.\n"
+                "• If ANY snippet contains the answer, reply in ONE SHORT, COMPLETE SENTENCE and cite inline like [1], [2].\n"
+                "• The sentence must read naturally (subject + verb). Avoid fragments like 'Acme Corp. [1]'.\n"
+                "• If no snippet contains the answer, say: I don't know.\n"
+                "• Do not add facts beyond the snippets."
             ),
         },
 
-        # --- Few-shot 1: explicit answer present -> extract + cite
+        # Few-shot 1: full sentence style
         {
             "role": "user",
             "content": (
@@ -113,9 +110,9 @@ def call_groq(prompt: str) -> str:
                 "[2] Acme Corporation manufactures widgets.\n"
             ),
         },
-        {"role": "assistant", "content": "Acme Corporation. [1]"},
+        {"role": "assistant", "content": "Alice works at Acme Corporation. [1]"},
 
-        # --- Few-shot 2: no answer present -> say 'I don't know'
+        # Few-shot 2: no answer case
         {
             "role": "user",
             "content": (
@@ -127,9 +124,11 @@ def call_groq(prompt: str) -> str:
         },
         {"role": "assistant", "content": "I don't know."},
 
-        # --- Now the actual question + snippets
+        # Now the real question + snippets
         {"role": "user", "content": prompt},
     ]
+
+    groq_client = get_groq()
 
     r = groq_client.chat.completions.create(
         model=LLM_MODEL,
