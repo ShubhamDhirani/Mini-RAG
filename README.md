@@ -163,4 +163,4 @@ EMBED_MODEL=all-MiniLM-L6-v2
 ---
 
 ## 📄 Resume
-[View Candidate Resume](https://drive.google.com/file/d/10Zarsixc51SE_YeIkT5dSTM85JmvuAcW/view?usp=drive_link)
+[Shubham Dhirani](https://drive.google.com/file/d/10Zarsixc51SE_YeIkT5dSTM85JmvuAcW/view?usp=drive_link)
