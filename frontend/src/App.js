@@ -32,6 +32,13 @@ function App() {
     setTimeout(() => setCopied(false), 3200);
   }
 
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey){
+      e.preventDefault();
+      ask();
+    }
+  };
+
   const ask = async () => {
     const text = q.trim();
     if (!text) return;
@@ -57,11 +64,39 @@ function App() {
       });
       const data = await r.json();
 
-      // 3) replace the temp assistant bubble with the real answer
+      // 3) keep only citations that were actually referenced in the answer,
+      // and renumber them to be sequential [1], [2], ...
+      const rawAnswer = data.answer || "";
+      const rawCites  = data.citations || [];
+
+      // filter to only cited
+      const used = rawCites.filter(c => rawAnswer.includes(`[${c.i}]`));
+
+      // remap indices to 1..N
+      const indexMap = new Map(); // old_i -> new_i
+      const remappedCites = used.map((c, idx) => {
+        const newI = idx + 1;
+        indexMap.set(c.i, newI);
+        return { ...c, i: newI };
+      });
+
+      // rewrite the answer’s bracket numbers to the new ones
+      let remappedAnswer = rawAnswer;
+      for (const [oldI, newI] of indexMap.entries()) {
+        const re = new RegExp(`\\[${oldI}\\]`, "g");
+        remappedAnswer = remappedAnswer.replace(re, `[${newI}]`);
+      }
+
+      // if nothing matched, fall back to original (keeps current behavior)
+      if (remappedCites.length === 0) {
+        remappedAnswer = rawAnswer;
+      }
+
+      // final assistant message
       const finalAssistant = {
         role: "assistant",
-        content: data.answer || "",
-        citations: data.citations || [],
+        content: remappedAnswer,
+        citations: remappedCites,
         meta: { latency: data.latency_ms, tokens: data.token_estimate }
       };
 
@@ -183,6 +218,7 @@ function App() {
         placeholder="Ask a question..."
         value={q}
         onChange={(e) => setQ(e.target.value)}
+        onKeyDown={handleKeyDown}
       />
       <button style={styles.button} onClick={ask} disabled={loading}>
         {loading ? "Loading..." : "Ask"}
