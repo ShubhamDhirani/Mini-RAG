@@ -162,5 +162,12 @@ EMBED_MODEL=all-MiniLM-L6-v2
 
 ---
 
+## 🔄 Maintenance
+
+- A GitHub Actions workflow (`.github/workflows/keep-alive.yml`) is configured to ping the backend every 10 minutes.  
+- This prevents the Render free-tier service from going idle (cold start).
+
+---
+
 ## 📄 Resume
 [Shubham Dhirani](https://drive.google.com/file/d/10Zarsixc51SE_YeIkT5dSTM85JmvuAcW/view?usp=drive_link)
