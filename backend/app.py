@@ -13,6 +13,8 @@ from fastembed import TextEmbedding
 
 from groq import Groq
 
+from fastapi import Response
+
 # --- load .env ---
 load_dotenv()
 
@@ -54,6 +56,18 @@ def get_groq():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/")
+def root():
+    return {"status":"ok","service":"mini-rag"}
+
+@app.head("/")
+def root_head():
+    return Response(status_code=200)
+
+@app.head("/health")
+def health_head():
+    return Response(status_code=200)
 
 # --- schema ---
 class QueryIn(BaseModel):
