@@ -82,13 +82,14 @@ function App() {
         return { ...c, i: newI };
       });
 
-      // Rewrite inline bracket numbers in the answer to match the new mapping.
-      // If no inline markers existed, this loop will have no effect (safe).
-      let remappedAnswer = rawAnswer;
-      for (const [oldI, newI] of indexMap.entries()) {
-        const re = new RegExp(`\$begin:math:display$${oldI}\\$end:math:display$`, "g");
-        remappedAnswer = remappedAnswer.replace(re, `[${newI}]`);
-      }
+
+
+let remappedAnswer = rawAnswer;
+for (const [oldI, newI] of indexMap.entries()) {
+
+const re = new RegExp(`\$begin:math:display$${oldI}\\$end:math:display$`, "g");
+remappedAnswer = remappedAnswer.replace(re, `[${newI}]`);
+}
 
       // If we ended up with zero citations (nothing returned from backend) keep original answer
       if (remappedCites.length === 0) {
