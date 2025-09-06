@@ -87,7 +87,7 @@ function App() {
 let remappedAnswer = rawAnswer;
 for (const [oldI, newI] of indexMap.entries()) {
 
-const re = new RegExp(`\$begin:math:display$${oldI}\\$end:math:display$`, "g");
+const re = new RegExp(`\begin:math:display$${oldI}\\$end:math:display$`, "g");
 remappedAnswer = remappedAnswer.replace(re, `[${newI}]`);
 }
 
