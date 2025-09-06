@@ -15,7 +15,7 @@ function App() {
   const chatEndRef = useRef(null);
   
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behaviour: "smooth"});
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth"});
   }, [messages]);
 
 
@@ -64,30 +64,33 @@ function App() {
       });
       const data = await r.json();
 
-      // 3) keep only citations that were actually referenced in the answer,
-      // and renumber them to be sequential [1], [2], ...
+            // 3) decide which citations to show and renumber them 1..N
       const rawAnswer = data.answer || "";
       const rawCites  = data.citations || [];
 
-      // filter to only cited
-      const used = rawCites.filter(c => rawAnswer.includes(`[${c.i}]`));
+      // try to detect explicit inline citations in the answer like "[1]" or "[2]"
+      const explicitlyCited = rawCites.filter(c => rawAnswer.includes(`[${c.i}]`));
 
-      // remap indices to 1..N
+      // If none were explicitly referenced, fall back to showing ALL returned citations
+      const toShow = explicitlyCited.length > 0 ? explicitlyCited : rawCites;
+
+      // Remap indices to 1..N so UI shows tidy sequential numbers
       const indexMap = new Map(); // old_i -> new_i
-      const remappedCites = used.map((c, idx) => {
+      const remappedCites = toShow.map((c, idx) => {
         const newI = idx + 1;
         indexMap.set(c.i, newI);
         return { ...c, i: newI };
       });
 
-      // rewrite the answer’s bracket numbers to the new ones
+      // Rewrite inline bracket numbers in the answer to match the new mapping.
+      // If no inline markers existed, this loop will have no effect (safe).
       let remappedAnswer = rawAnswer;
       for (const [oldI, newI] of indexMap.entries()) {
-        const re = new RegExp(`\\[${oldI}\\]`, "g");
+        const re = new RegExp(`\$begin:math:display$${oldI}\\$end:math:display$`, "g");
         remappedAnswer = remappedAnswer.replace(re, `[${newI}]`);
       }
 
-      // if nothing matched, fall back to original (keeps current behavior)
+      // If we ended up with zero citations (nothing returned from backend) keep original answer
       if (remappedCites.length === 0) {
         remappedAnswer = rawAnswer;
       }
